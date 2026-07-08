@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asada — imagen a 3D</title>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --panel: #16181f;
+    --panel2: #1d2029;
+    --border: #2a2e3a;
+    --text: #e8eaf0;
+    --muted: #8b90a0;
+    --accent: #ff6b4a;
+    --accent2: #ffa06b;
+    --ok: #4ade80;
+    --err: #f87171;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 22px;
+    letter-spacing: 3px;
+    font-weight: 800;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header .sub { color: var(--muted); font-size: 13px; }
+  #conn {
+    margin-left: auto;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  #conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  #conn.ok .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  #conn.err .dot { background: var(--err); box-shadow: 0 0 8px var(--err); }
+  #gear {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 15px;
+    padding: 4px 9px;
+    cursor: pointer;
+  }
+  #gear:hover { color: var(--text); border-color: var(--accent); }
+  #cfg input {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  #cfg button {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #cfg button:hover { border-color: var(--accent); }
+  main { flex: 1; display: flex; min-height: 0; }
+  aside {
+    width: 340px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  #drop {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    text-align: center;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  #drop:hover, #drop.over { border-color: var(--accent); background: var(--panel2); }
+  #drop .icon { font-size: 34px; }
+  #drop p { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  #drop img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: var(--panel);
+    padding: 8px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card label { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .card input[type=range] { width: 100%; accent-color: var(--accent); }
+  .toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; user-select: none; }
+  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+  button.primary {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border: none;
+    color: #1a0e08;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: filter .15s, transform .1s;
+  }
+  button.primary:hover:enabled { filter: brightness(1.1); }
+  button.primary:active:enabled { transform: scale(.98); }
+  button.primary:disabled { filter: grayscale(.8) brightness(.6); cursor: not-allowed; }
+  #status { font-size: 13px; color: var(--muted); min-height: 18px; }
+  #bar { height: 6px; background: var(--panel2); border-radius: 4px; overflow: hidden; display: none; }
+  #bar > div { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .5s; }
+  #downloads { display: none; flex-direction: row; gap: 8px; }
+  #downloads a {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    border-radius: 10px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: border-color .15s;
+  }
+  #downloads a:hover { border-color: var(--accent); }
+  #meshinfo { font-size: 12px; color: var(--muted); display: none; }
+  #help {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    display: none;
+  }
+  #help code { background: var(--panel2); padding: 1px 6px; border-radius: 5px; color: var(--accent2); }
+  #viewer { flex: 1; position: relative; min-width: 0; }
+  #viewer canvas { display: block; }
+  #viewer .placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 14px;
+    pointer-events: none;
+  }
+  @media (max-width: 760px) {
+    main { flex-direction: column; overflow-y: auto; }
+    aside { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    #viewer { min-height: 380px; }
+    body { overflow: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>ASADA</h1>
+  <span class="sub">imagen&nbsp;→&nbsp;modelo 3D · IA local</span>
+  <div id="conn"><span class="dot"></span><span id="connText">buscando servidor…</span></div>
+  <button id="gear" title="Configurar servidor remoto">⚙</button>
+</header>
+<main>
+  <aside>
+    <div id="drop">
+      <span class="icon">🖼️</span>
+      <p><strong>Arrastra una imagen aquí</strong><br>o haz clic para elegirla.<br>Funciona mejor con un objeto centrado sobre fondo simple.</p>
+      <input type="file" id="file" accept="image/*" hidden>
+    </div>
+    <div class="card">
+      <label>Motor de IA</label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan" checked> Detallado · Hunyuan3D-2 mini (~1-2 min)</label>
+      <label class="toggle"><input type="radio" name="engine" value="triposr"> Rápido con color · TripoSR (~15 s)</label>
+    </div>
+    <div class="card">
+      <label>Resolución de malla <span id="resVal">256</span></label>
+      <input type="range" id="res" min="128" max="384" step="64" value="256">
+      <label class="toggle"><input type="checkbox" id="rmbg" checked> Quitar fondo automáticamente</label>
+      <label class="toggle"><input type="checkbox" id="smooth" checked> Suavizar la superficie</label>
+    </div>
+    <button class="primary" id="go" disabled>Generar modelo 3D</button>
+    <div id="bar"><div></div></div>
+    <div id="status"></div>
+    <div id="downloads">
+      <a id="dl-glb" download>GLB</a>
+      <a id="dl-stl" download>STL</a>
+      <a id="dl-obj" download>OBJ</a>
+    </div>
+    <div id="meshinfo"></div>
+    <div id="cfg" class="card" style="display:none">
+      <label>Servidor de Asada (vacío = esta misma PC)</label>
+      <input type="text" id="cfgApi" placeholder="https://xxxx.trycloudflare.com">
+      <label>Clave de acceso (asada_key.txt)</label>
+      <input type="text" id="cfgKey" placeholder="solo para servidor remoto">
+      <button id="cfgSave">Guardar y reconectar</button>
+    </div>
+    <div id="help" class="card">
+      No se encontró el servidor de Asada.<br>
+      • Si es esta PC: abre <code>D:\asada</code> y ejecuta <code>run.bat</code>.<br>
+      • Si es remoto: pulsa ⚙ arriba y pon la URL del túnel y la clave de <code>asada_key.txt</code>.
+    </div>
+  </aside>
+  <div id="viewer">
+    <div class="placeholder" id="ph">El modelo 3D aparecerá aquí</div>
+  </div>
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// El servidor se descubre solo, probando candidatos en orden:
+// 1) el configurado a mano (⚙ o ?api=), 2) el mismo origen de la página
+// (cuando se abre por el túnel o en localhost), 3) el tunnel.json publicado
+// junto a la página (lo escribe tunnel.bat), 4) localhost:8765.
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.get('api')) localStorage.setItem('asada_api', urlParams.get('api'));
+if (urlParams.get('key')) localStorage.setItem('asada_key', urlParams.get('key'));
+const savedApi = (localStorage.getItem('asada_api') || '').replace(/\/+$/, '');
+let KEY = localStorage.getItem('asada_key') || '';
+let API = null; // null = todavía sin resolver
+const hdrs = () => KEY ? { 'X-Asada-Key': KEY } : {};
+const withKey = url => KEY ? url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(KEY) : url;
+
+async function probe(base) {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch(base + '/api/status', { signal: ctl.signal, cache: 'no-store' });
+    clearTimeout(t);
+    const s = await r.json();
+    return s.app === 'asada' ? s : null;
+  } catch { return null; }
+}
+
+// Copia publicada de la interfaz: ahí tunnel.bat publica la URL del túnel,
+// y sirve de respaldo de descubrimiento para copias alojadas en otro sitio
+// (por ejemplo, el embed de Wix).
+const PAGES = 'https://3dkoneko.github.io/asada';
+
+async function resolveApi() {
+  const candidates = [];
+  if (savedApi) candidates.push(savedApi);
+  if (location.protocol.startsWith('http')) candidates.push('');
+  for (const src of ['tunnel.json', PAGES + '/tunnel.json']) {
+    try {
+      const t = await (await fetch(src, { cache: 'no-store' })).json();
+      if (t.url) {
+        candidates.push(t.url.replace(/\/+$/, ''));
+        if (t.key && !KEY) KEY = t.key;
+        break;
+      }
+    } catch {}
+  }
+  candidates.push('http://localhost:8765');
+  for (const c of candidates) {
+    const s = await probe(c);
+    if (s) { API = c; return s; }
+  }
+  return null;
+}
+
+const $ = id => document.getElementById(id);
+
+// Panel de configuración del servidor remoto
+$('gear').addEventListener('click', () => {
+  const c = $('cfg');
+  c.style.display = c.style.display === 'none' ? 'flex' : 'none';
+  $('cfgApi').value = localStorage.getItem('asada_api') || '';
+  $('cfgKey').value = KEY;
+});
+$('cfgSave').addEventListener('click', () => {
+  localStorage.setItem('asada_api', $('cfgApi').value.trim());
+  localStorage.setItem('asada_key', $('cfgKey').value.trim());
+  location.reload();
+});
+let selectedFile = null;
+let serverReady = false;
+
+// ---------- conexión ----------
+let pinging = false;
+async function ping() {
+  if (pinging) return;
+  pinging = true;
+  const s = API === null ? await resolveApi() : await probe(API);
+  if (s) {
+    serverReady = s.ready;
+    $('conn').className = 'ok';
+    $('connText').textContent = s.ready ? ('conectado · ' + (s.gpu || s.device)) : 'cargando modelo…';
+    $('help').style.display = 'none';
+  } else {
+    serverReady = false;
+    API = null; // reintentar el descubrimiento en el siguiente ping
+    $('conn').className = 'err';
+    $('connText').textContent = 'servidor no encontrado';
+    $('help').style.display = 'block';
+  }
+  pinging = false;
+  updateGo();
+}
+setInterval(ping, 4000); ping();
+
+// ---------- carga de imagen ----------
+const drop = $('drop');
+drop.addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => setFile(e.target.files[0]));
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+function setFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  selectedFile = f;
+  const old = drop.querySelector('img');
+  if (old) old.remove();
+  const img = document.createElement('img');
+  img.src = URL.createObjectURL(f);
+  drop.appendChild(img);
+  updateGo();
+}
+function updateGo() { $('go').disabled = !(selectedFile && serverReady); }
+$('res').addEventListener('input', e => $('resVal').textContent = e.target.value);
+
+// ---------- generación ----------
+const STATUS_TXT = {
+  queued: 'En cola…',
+  loading_engine: 'Cargando el motor de IA…',
+  preprocessing: 'Quitando el fondo…',
+  generating: 'La IA está pensando en 3D… (el modo detallado tarda 1-2 min)',
+  meshing: 'Construyendo la malla…',
+  exporting: 'Exportando archivos…',
+};
+$('go').addEventListener('click', async () => {
+  $('go').disabled = true;
+  $('downloads').style.display = 'none';
+  $('meshinfo').style.display = 'none';
+  $('bar').style.display = 'block';
+  setProgress(2, 'Subiendo imagen…');
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+  fd.append('engine', document.querySelector('input[name=engine]:checked').value);
+  fd.append('resolution', $('res').value);
+  fd.append('remove_bg', $('rmbg').checked);
+  fd.append('smooth', $('smooth').checked);
+  try {
+    const r = await fetch(API + '/api/generate', { method: 'POST', body: fd, headers: hdrs() });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const { job_id } = await r.json();
+    poll(job_id);
+  } catch (e) {
+    fail(e.message);
+  }
+});
+async function poll(id) {
+  try {
+    const job = await (await fetch(`${API}/api/jobs/${id}`, { headers: hdrs() })).json();
+    if (job.status === 'error') return fail(job.error);
+    if (job.status === 'done') {
+      setProgress(100, '¡Listo!');
+      $('bar').style.display = 'none';
+      for (const ext of ['glb', 'stl', 'obj'])
+        $('dl-' + ext).href = withKey(`${API}/api/jobs/${id}/model.${ext}`);
+      $('downloads').style.display = 'flex';
+      $('meshinfo').style.display = 'block';
+      $('meshinfo').textContent = `${job.vertices.toLocaleString()} vértices · ${job.faces.toLocaleString()} caras`;
+      loadModel(withKey(`${API}/api/jobs/${id}/model.glb`));
+      updateGo();
+      return;
+    }
+    setProgress(job.progress, STATUS_TXT[job.status] || job.status);
+    setTimeout(() => poll(id), 1200);
+  } catch (e) {
+    fail('Se perdió la conexión con el servidor: ' + e.message);
+  }
+}
+function setProgress(p, txt) {
+  $('bar').firstElementChild.style.width = p + '%';
+  $('status').textContent = txt;
+}
+function fail(msg) {
+  $('bar').style.display = 'none';
+  $('status').textContent = '❌ ' + msg;
+  updateGo();
+}
+
+// ---------- visor 3D ----------
+const viewer = $('viewer');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e0f13);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+camera.position.set(1.2, 0.9, 1.6);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+viewer.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x334, 1.2));
+const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+dir.position.set(2, 3, 2);
+scene.add(dir);
+const grid = new THREE.GridHelper(4, 40, 0x2a2e3a, 0x1d2029);
+grid.position.y = -0.55;
+scene.add(grid);
+
+let currentModel = null;
+function loadModel(url) {
+  new GLTFLoader().load(url, gltf => {
+    if (currentModel) scene.remove(currentModel);
+    currentModel = gltf.scene;
+    currentModel.traverse(o => {
+      if (o.isMesh) {
+        // El GLB de trimesh no trae normales: sin esto todo se ve negro.
+        if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+        o.material = new THREE.MeshStandardMaterial({
+          vertexColors: !!o.geometry.attributes.color,
+          roughness: 0.85,
+          metalness: 0.0,
+        });
+      }
+    });
+    // Centrar el modelo y apoyarlo sobre la rejilla a un tamaño cómodo.
+    const box = new THREE.Box3().setFromObject(currentModel);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const scale = 1.1 / Math.max(size.x, size.y, size.z);
+    currentModel.scale.setScalar(scale);
+    currentModel.position.set(
+      -center.x * scale,
+      grid.position.y - box.min.y * scale,
+      -center.z * scale,
+    );
+    scene.add(currentModel);
+    controls.target.set(0, grid.position.y + size.y * scale / 2, 0);
+    $('ph').style.display = 'none';
+  });
+}
+
+function resize() {
+  const w = viewer.clientWidth, h = viewer.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+new ResizeObserver(resize).observe(viewer);
+resize();
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  if (currentModel) currentModel.rotation.y += 0.0015;
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
