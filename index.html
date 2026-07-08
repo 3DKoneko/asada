@@ -60,36 +60,20 @@
   #conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
   #conn.ok .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
   #conn.err .dot { background: var(--err); box-shadow: 0 0 8px var(--err); }
-  #gear {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 8px;
+  .mv-row { display: flex; gap: 8px; }
+  .mv-slot {
+    flex: 1;
+    aspect-ratio: 1;
+    background: var(--panel2) center/cover no-repeat;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
     color: var(--muted);
-    font-size: 15px;
-    padding: 4px 9px;
+    font-size: 12px;
     cursor: pointer;
   }
-  #gear:hover { color: var(--text); border-color: var(--accent); }
-  #cfg input {
-    width: 100%;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-  #cfg button {
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 9px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  #cfg button:hover { border-color: var(--accent); }
+  .mv-slot:hover { border-color: var(--accent); }
+  .mv-slot.filled { border-style: solid; border-color: var(--accent); color: transparent; }
+  #stepsRow { display: flex; flex-direction: column; gap: 10px; }
   main { flex: 1; display: flex; min-height: 0; }
   aside {
     width: 340px;
@@ -208,7 +192,6 @@
   <h1>ASADA</h1>
   <span class="sub">imagen&nbsp;→&nbsp;modelo 3D · IA local</span>
   <div id="conn"><span class="dot"></span><span id="connText">buscando servidor…</span></div>
-  <button id="gear" title="Configurar servidor remoto">⚙</button>
 </header>
 <main>
   <aside>
@@ -219,12 +202,27 @@
     </div>
     <div class="card">
       <label>Motor de IA</label>
-      <label class="toggle"><input type="radio" name="engine" value="hunyuan" checked> Detallado · Hunyuan3D-2 mini (~1-2 min)</label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan_turbo" checked> Turbo · detallado en ~20 s</label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan"> Detallado+ · más pasos de IA (~1-2 min)</label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"> Multi-vista · hasta 4 fotos (máxima fidelidad)</label>
       <label class="toggle"><input type="radio" name="engine" value="triposr"> Rápido con color · TripoSR (~15 s)</label>
+    </div>
+    <div id="mvViews" class="card" style="display:none">
+      <label>Vistas extra del mismo objeto (opcionales)</label>
+      <div class="mv-row">
+        <button type="button" class="mv-slot" data-view="back">＋ atrás</button>
+        <button type="button" class="mv-slot" data-view="left">＋ izquierda</button>
+        <button type="button" class="mv-slot" data-view="right">＋ derecha</button>
+      </div>
+      <input type="file" id="mvFile" accept="image/*" hidden>
     </div>
     <div class="card">
       <label>Resolución de malla <span id="resVal">256</span></label>
       <input type="range" id="res" min="128" max="384" step="64" value="256">
+      <div id="stepsRow">
+        <label>Calidad (pasos de IA) <span id="stepsVal">30</span></label>
+        <input type="range" id="steps" min="10" max="75" step="5" value="30">
+      </div>
       <label class="toggle"><input type="checkbox" id="rmbg" checked> Quitar fondo automáticamente</label>
       <label class="toggle"><input type="checkbox" id="smooth" checked> Suavizar la superficie</label>
     </div>
@@ -237,17 +235,9 @@
       <a id="dl-obj" download>OBJ</a>
     </div>
     <div id="meshinfo"></div>
-    <div id="cfg" class="card" style="display:none">
-      <label>Servidor de Asada (vacío = esta misma PC)</label>
-      <input type="text" id="cfgApi" placeholder="https://xxxx.trycloudflare.com">
-      <label>Clave de acceso (asada_key.txt)</label>
-      <input type="text" id="cfgKey" placeholder="solo para servidor remoto">
-      <button id="cfgSave">Guardar y reconectar</button>
-    </div>
     <div id="help" class="card">
-      No se encontró el servidor de Asada.<br>
-      • Si es esta PC: abre <code>D:\asada</code> y ejecuta <code>run.bat</code>.<br>
-      • Si es remoto: pulsa ⚙ arriba y pon la URL del túnel y la clave de <code>asada_key.txt</code>.
+      El generador está apagado o desconectado en este momento.<br>
+      Vuelve a intentarlo en un rato — la página se reconecta sola.
     </div>
   </aside>
   <div id="viewer">
@@ -321,18 +311,8 @@ async function resolveApi() {
 
 const $ = id => document.getElementById(id);
 
-// Panel de configuración del servidor remoto
-$('gear').addEventListener('click', () => {
-  const c = $('cfg');
-  c.style.display = c.style.display === 'none' ? 'flex' : 'none';
-  $('cfgApi').value = localStorage.getItem('asada_api') || '';
-  $('cfgKey').value = KEY;
-});
-$('cfgSave').addEventListener('click', () => {
-  localStorage.setItem('asada_api', $('cfgApi').value.trim());
-  localStorage.setItem('asada_key', $('cfgKey').value.trim());
-  location.reload();
-});
+// (La configuración manual se retiró: el servidor se descubre solo vía
+// tunnel.json; ?api= y ?key= en la URL siguen funcionando por si acaso.)
 let selectedFile = null;
 let serverReady = false;
 
@@ -345,7 +325,7 @@ async function ping() {
   if (s) {
     serverReady = s.ready;
     $('conn').className = 'ok';
-    $('connText').textContent = s.ready ? ('conectado · ' + (s.gpu || s.device)) : 'cargando modelo…';
+    $('connText').textContent = s.ready ? 'conectado' : 'cargando modelo…';
     $('help').style.display = 'none';
   } else {
     serverReady = false;
@@ -381,6 +361,33 @@ function setFile(f) {
 }
 function updateGo() { $('go').disabled = !(selectedFile && serverReady); }
 $('res').addEventListener('input', e => $('resVal').textContent = e.target.value);
+$('steps').addEventListener('input', e => $('stepsVal').textContent = e.target.value);
+
+// ---------- motor y vistas extra ----------
+const viewFiles = { back: null, left: null, right: null };
+let mvSlotActive = null;
+const engineValue = () => document.querySelector('input[name=engine]:checked').value;
+
+function onEngineChange() {
+  const e = engineValue();
+  $('mvViews').style.display = e === 'hunyuan_mv' ? 'flex' : 'none';
+  // El turbo está destilado a 5 pasos y TripoSR no usa pasos.
+  $('stepsRow').style.display = (e === 'hunyuan' || e === 'hunyuan_mv') ? 'flex' : 'none';
+}
+document.querySelectorAll('input[name=engine]').forEach(r => r.addEventListener('change', onEngineChange));
+onEngineChange();
+
+document.querySelectorAll('.mv-slot').forEach(btn => {
+  btn.addEventListener('click', () => { mvSlotActive = btn; $('mvFile').click(); });
+});
+$('mvFile').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f || !mvSlotActive) return;
+  viewFiles[mvSlotActive.dataset.view] = f;
+  mvSlotActive.classList.add('filled');
+  mvSlotActive.style.backgroundImage = `url(${URL.createObjectURL(f)})`;
+  e.target.value = '';
+});
 
 // ---------- generación ----------
 const STATUS_TXT = {
@@ -399,10 +406,16 @@ $('go').addEventListener('click', async () => {
   setProgress(2, 'Subiendo imagen…');
   const fd = new FormData();
   fd.append('image', selectedFile);
-  fd.append('engine', document.querySelector('input[name=engine]:checked').value);
+  const eng = engineValue();
+  fd.append('engine', eng);
   fd.append('resolution', $('res').value);
+  fd.append('steps', $('steps').value);
   fd.append('remove_bg', $('rmbg').checked);
   fd.append('smooth', $('smooth').checked);
+  if (eng === 'hunyuan_mv') {
+    for (const [view, f] of Object.entries(viewFiles))
+      if (f) fd.append('image_' + view, f);
+  }
   try {
     const r = await fetch(API + '/api/generate', { method: 'POST', body: fd, headers: hdrs() });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
