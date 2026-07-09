@@ -204,6 +204,7 @@
       <label>Motor de IA</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_turbo" checked> Turbo · detallado en ~20 s</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan"> Detallado+ · más pasos de IA (~1-2 min)</label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan_max"> Máxima calidad · modelo grande (~2-6 min)</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"> Multi-vista · hasta 4 fotos (máxima fidelidad)</label>
       <label class="toggle"><input type="radio" name="engine" value="triposr"> Rápido con color · TripoSR (~15 s)</label>
     </div>
@@ -218,10 +219,10 @@
     </div>
     <div class="card">
       <label>Resolución de malla <span id="resVal">256</span></label>
-      <input type="range" id="res" min="128" max="384" step="64" value="256">
+      <input type="range" id="res" min="128" max="512" step="64" value="256">
       <div id="stepsRow">
         <label>Calidad (pasos de IA) <span id="stepsVal">30</span></label>
-        <input type="range" id="steps" min="10" max="75" step="5" value="30">
+        <input type="range" id="steps" min="10" max="100" step="5" value="30">
       </div>
       <label class="toggle"><input type="checkbox" id="rmbg" checked> Quitar fondo automáticamente</label>
       <label class="toggle"><input type="checkbox" id="smooth" checked> Suavizar la superficie</label>
@@ -372,7 +373,12 @@ function onEngineChange() {
   const e = engineValue();
   $('mvViews').style.display = e === 'hunyuan_mv' ? 'flex' : 'none';
   // El turbo está destilado a 5 pasos y TripoSR no usa pasos.
-  $('stepsRow').style.display = (e === 'hunyuan' || e === 'hunyuan_mv') ? 'flex' : 'none';
+  $('stepsRow').style.display = (e === 'hunyuan' || e === 'hunyuan_mv' || e === 'hunyuan_max') ? 'flex' : 'none';
+  // Valores recomendados al elegir el modo de máxima calidad.
+  if (e === 'hunyuan_max' && +$('steps').value < 50) {
+    $('steps').value = 50; $('stepsVal').textContent = 50;
+    $('res').value = 384; $('resVal').textContent = 384;
+  }
 }
 document.querySelectorAll('input[name=engine]').forEach(r => r.addEventListener('change', onEngineChange));
 onEngineChange();
