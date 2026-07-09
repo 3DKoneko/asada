@@ -74,6 +74,16 @@
   .mv-slot:hover { border-color: var(--accent); }
   .mv-slot.filled { border-style: solid; border-color: var(--accent); color: transparent; }
   #stepsRow { display: flex; flex-direction: column; gap: 10px; }
+  .hist-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .hist-item {
+    aspect-ratio: 1;
+    background: var(--panel2) center/cover no-repeat;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color .15s, transform .1s;
+  }
+  .hist-item:hover { border-color: var(--accent); transform: scale(1.05); }
   main { flex: 1; display: flex; min-height: 0; }
   aside {
     width: 340px;
@@ -236,6 +246,10 @@
       <a id="dl-obj" download>OBJ</a>
     </div>
     <div id="meshinfo"></div>
+    <div id="histCard" class="card" style="display:none">
+      <label>Tus últimos modelos</label>
+      <div id="hist" class="hist-grid"></div>
+    </div>
     <div id="help" class="card">
       El generador está apagado o desconectado en este momento.<br>
       Vuelve a intentarlo en un rato — la página se reconecta sola.
@@ -314,6 +328,46 @@ const $ = id => document.getElementById(id);
 
 // (La configuración manual se retiró: el servidor se descubre solo vía
 // tunnel.json; ?api= y ?key= en la URL siguen funcionando por si acaso.)
+
+// ---------- usuario (miembro de 3dkoneko.com) ----------
+// Wix (Velo) manda el ID del miembro por postMessage al iframe; también se
+// acepta ?user= en la URL para pruebas.
+let USER = (urlParams.get('user') || '').replace(/[^A-Za-z0-9_-]/g, '') || null;
+let histUser = null; // usuario cuyo historial ya está pintado
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (d && d.type === 'asada-user' && d.id) {
+    const id = String(d.id).replace(/[^A-Za-z0-9_-]/g, '');
+    if (id && id !== USER) { USER = id; histUser = null; }
+  }
+});
+
+async function loadHistory() {
+  if (!USER || API === null) return;
+  try {
+    const r = await fetch(`${API}/api/history/${USER}`, { headers: hdrs() });
+    const { models } = await r.json();
+    const div = $('hist');
+    div.innerHTML = '';
+    for (const m of models) {
+      const el = document.createElement('div');
+      el.className = 'hist-item';
+      el.style.backgroundImage = `url("${withKey(`${API}/api/jobs/${m.id}/thumb.png`)}")`;
+      el.title = new Date(m.ts * 1000).toLocaleString();
+      el.addEventListener('click', () => showJob(m.id));
+      div.appendChild(el);
+    }
+    $('histCard').style.display = models.length ? 'flex' : 'none';
+    histUser = USER;
+  } catch {}
+}
+
+function showJob(id) {
+  for (const ext of ['glb', 'stl', 'obj'])
+    $('dl-' + ext).href = withKey(`${API}/api/jobs/${id}/model.${ext}`);
+  $('downloads').style.display = 'flex';
+  loadModel(withKey(`${API}/api/jobs/${id}/model.glb`));
+}
 let selectedFile = null;
 let serverReady = false;
 
@@ -328,6 +382,7 @@ async function ping() {
     $('conn').className = 'ok';
     $('connText').textContent = s.ready ? 'conectado' : 'cargando modelo…';
     $('help').style.display = 'none';
+    if (USER && histUser !== USER) loadHistory();
   } else {
     serverReady = false;
     API = null; // reintentar el descubrimiento en el siguiente ping
@@ -422,6 +477,7 @@ $('go').addEventListener('click', async () => {
     for (const [view, f] of Object.entries(viewFiles))
       if (f) fd.append('image_' + view, f);
   }
+  if (USER) fd.append('user', USER);
   try {
     const r = await fetch(API + '/api/generate', { method: 'POST', body: fd, headers: hdrs() });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
@@ -443,7 +499,7 @@ async function poll(id) {
       $('downloads').style.display = 'flex';
       $('meshinfo').style.display = 'block';
       $('meshinfo').textContent = `${job.vertices.toLocaleString()} vértices · ${job.faces.toLocaleString()} caras`;
-      loadModel(withKey(`${API}/api/jobs/${id}/model.glb`));
+      loadModel(withKey(`${API}/api/jobs/${id}/model.glb`), id);
       updateGo();
       return;
     }
@@ -484,7 +540,7 @@ grid.position.y = -0.55;
 scene.add(grid);
 
 let currentModel = null;
-function loadModel(url) {
+function loadModel(url, thumbJobId = null) {
   new GLTFLoader().load(url, gltf => {
     if (currentModel) scene.remove(currentModel);
     currentModel = gltf.scene;
@@ -513,7 +569,25 @@ function loadModel(url) {
     scene.add(currentModel);
     controls.target.set(0, grid.position.y + size.y * scale / 2, 0);
     $('ph').style.display = 'none';
+    if (thumbJobId && USER) sendThumb(thumbJobId);
   });
+}
+
+// Captura el visor recién cargado y la sube como miniatura del historial.
+function sendThumb(jobId) {
+  renderer.render(scene, camera);
+  renderer.domElement.toBlob(async blob => {
+    if (!blob) return;
+    try {
+      await fetch(`${API}/api/jobs/${jobId}/thumb`, {
+        method: 'POST',
+        body: blob,
+        headers: hdrs(),
+      });
+      histUser = null; // fuerza el refresco de la galería
+      loadHistory();
+    } catch {}
+  }, 'image/png');
 }
 
 function resize() {
