@@ -84,6 +84,35 @@
     transition: border-color .15s, transform .1s;
   }
   .hist-item:hover { border-color: var(--accent); transform: scale(1.05); }
+  .hist-item { position: relative; }
+  .hist-item .del {
+    position: absolute;
+    top: -6px; right: -6px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--err);
+    color: #200;
+    border: none;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    cursor: pointer;
+    display: none;
+    padding: 0;
+  }
+  .hist-item:hover .del { display: block; }
+  .hist-item.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .hist-hint { font-size: 11px; color: var(--muted); }
+  #histCount { color: var(--muted); font-weight: 400; }
+  #queue {
+    display: none;
+    font-size: 12px;
+    color: var(--accent2);
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
   main { flex: 1; display: flex; min-height: 0; }
   aside {
     width: 340px;
@@ -214,6 +243,7 @@
       <label>Motor de IA</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_max" checked> Máxima calidad · una foto (~2-4 min)</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"> Multi-vista · hasta 4 fotos (máxima fidelidad)</label>
+      <label class="toggle"><input type="radio" name="engine" value="trellis"> <b>ULTRA calidad</b> · el mejor detalle (hasta 30 min)</label>
     </div>
     <div id="mvViews" class="card" style="display:none">
       <label>Vistas extra del mismo objeto (opcionales)</label>
@@ -236,6 +266,7 @@
     </div>
     <button class="primary" id="go" disabled>Generar modelo 3D</button>
     <div id="bar"><div></div></div>
+    <div id="queue"></div>
     <div id="status"></div>
     <div id="downloads">
       <a id="dl-glb" download>GLB</a>
@@ -244,8 +275,9 @@
     </div>
     <div id="meshinfo"></div>
     <div id="histCard" class="card" style="display:none">
-      <label>Tus últimos modelos</label>
+      <label>Tus modelos guardados <span id="histCount"></span></label>
       <div id="hist" class="hist-grid"></div>
+      <div class="hist-hint">Haz clic para verlo y descargarlo · ✕ para borrarlo</div>
     </div>
     <div id="help" class="card">
       El generador está apagado o desconectado en este momento.<br>
@@ -339,21 +371,42 @@ window.addEventListener('message', e => {
   }
 });
 
+const ENGINE_NAMES = {
+  hunyuan_max: 'Máxima calidad',
+  hunyuan_mv: 'Multi-vista',
+  trellis: 'ULTRA calidad',
+};
+
 async function loadHistory() {
   if (!USER || API === null) return;
   try {
     const r = await fetch(`${API}/api/history/${USER}`, { headers: hdrs() });
-    const { models } = await r.json();
+    const { models, max } = await r.json();
     const div = $('hist');
     div.innerHTML = '';
     for (const m of models) {
       const el = document.createElement('div');
       el.className = 'hist-item';
       el.style.backgroundImage = `url("${withKey(`${API}/api/jobs/${m.id}/thumb.png`)}")`;
-      el.title = new Date(m.ts * 1000).toLocaleString();
+      el.title = `${ENGINE_NAMES[m.engine] || m.engine} · ${(m.faces || 0).toLocaleString()} caras\n${new Date(m.ts * 1000).toLocaleString()}`;
       el.addEventListener('click', () => showJob(m.id));
+
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '✕';
+      del.title = 'Borrar este modelo';
+      del.addEventListener('click', async ev => {
+        ev.stopPropagation();
+        if (!confirm('¿Borrar este modelo? No se puede deshacer.')) return;
+        try {
+          await fetch(`${API}/api/history/${USER}/${m.id}`, { method: 'DELETE', headers: hdrs() });
+          loadHistory();
+        } catch {}
+      });
+      el.appendChild(del);
       div.appendChild(el);
     }
+    $('histCount').textContent = models.length ? `(${models.length} de ${max})` : '';
     $('histCard').style.display = models.length ? 'flex' : 'none';
     histUser = USER;
   } catch {}
@@ -442,10 +495,11 @@ $('mvFile').addEventListener('change', e => {
 
 // ---------- generación ----------
 const STATUS_TXT = {
-  queued: 'En cola…',
+  queued: 'Esperando turno…',
   loading_engine: 'Cargando el motor de IA…',
+  starting_ultra: 'Preparando el motor ULTRA…',
   preprocessing: 'Quitando el fondo…',
-  generating: 'La IA está pensando en 3D… (el modo detallado tarda 1-2 min)',
+  generating: 'La IA está pensando en 3D…',
   meshing: 'Construyendo la malla…',
   exporting: 'Exportando archivos…',
 };
@@ -484,6 +538,7 @@ async function poll(id) {
     if (job.status === 'done') {
       setProgress(100, '¡Listo!');
       $('bar').style.display = 'none';
+      $('queue').style.display = 'none';
       for (const ext of ['glb', 'stl', 'obj'])
         $('dl-' + ext).href = withKey(`${API}/api/jobs/${id}/model.${ext}`);
       $('downloads').style.display = 'flex';
@@ -493,8 +548,20 @@ async function poll(id) {
       updateGo();
       return;
     }
-    setProgress(job.progress, STATUS_TXT[job.status] || job.status);
-    setTimeout(() => poll(id), 1200);
+    const pos = job.queue_position || 0;
+    if (job.status === 'queued' && pos > 0) {
+      $('queue').style.display = 'block';
+      $('queue').textContent = pos === 1
+        ? '⏳ Hay 1 modelo generándose antes que el tuyo.'
+        : `⏳ Hay ${pos} modelos en cola antes que el tuyo.`;
+    } else {
+      $('queue').style.display = 'none';
+    }
+    let txt = STATUS_TXT[job.status] || job.status;
+    if (job.status === 'generating' && job.engine === 'trellis')
+      txt += ' El modo ULTRA puede tardar hasta 30 minutos.';
+    setProgress(job.progress, txt);
+    setTimeout(() => poll(id), 2000);
   } catch (e) {
     fail('Se perdió la conexión con el servidor: ' + e.message);
   }
