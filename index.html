@@ -277,7 +277,8 @@
     <div id="histCard" class="card" style="display:none">
       <label>Tus modelos guardados <span id="histCount"></span></label>
       <div id="hist" class="hist-grid"></div>
-      <div class="hist-hint">Haz clic para verlo y descargarlo · ✕ para borrarlo</div>
+      <div id="histEmpty" class="hist-hint">Aquí se guardarán tus últimos 10 modelos.</div>
+      <div class="hist-hint">Haz clic en uno para verlo y descargarlo · ✕ para borrarlo</div>
     </div>
     <div id="help" class="card">
       El generador está apagado o desconectado en este momento.<br>
@@ -358,10 +359,19 @@ const $ = id => document.getElementById(id);
 // (La configuración manual se retiró: el servidor se descubre solo vía
 // tunnel.json; ?api= y ?key= en la URL siguen funcionando por si acaso.)
 
-// ---------- usuario (miembro de 3dkoneko.com) ----------
-// Wix (Velo) manda el ID del miembro por postMessage al iframe; también se
-// acepta ?user= en la URL para pruebas.
-let USER = (urlParams.get('user') || '').replace(/[^A-Za-z0-9_-]/g, '') || null;
+// ---------- usuario ----------
+// Orden de preferencia: ?user= en la URL, el ID de miembro que manda Wix por
+// postMessage, o un identificador propio del navegador. Este último hace que
+// la galería funcione siempre, incluso sin haber iniciado sesión en Wix.
+function anonId() {
+  let id = localStorage.getItem('asada_anon');
+  if (!id) {
+    id = 'inv' + Math.random().toString(36).slice(2, 12);
+    localStorage.setItem('asada_anon', id);
+  }
+  return id;
+}
+let USER = (urlParams.get('user') || '').replace(/[^A-Za-z0-9_-]/g, '') || anonId();
 let histUser = null; // usuario cuyo historial ya está pintado
 window.addEventListener('message', e => {
   const d = e.data;
@@ -407,7 +417,10 @@ async function loadHistory() {
       div.appendChild(el);
     }
     $('histCount').textContent = models.length ? `(${models.length} de ${max})` : '';
-    $('histCard').style.display = models.length ? 'flex' : 'none';
+    // La tarjeta se mantiene visible aunque esté vacía, para que se vea dónde
+    // van a quedar guardados los modelos.
+    $('histCard').style.display = 'flex';
+    $('histEmpty').style.display = models.length ? 'none' : 'block';
     histUser = USER;
   } catch {}
 }
