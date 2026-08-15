@@ -82,6 +82,12 @@
     border-radius: 8px;
     cursor: pointer;
     transition: border-color .15s, transform .1s;
+    /* Respaldo cuando el modelo no tiene miniatura (se generó sin visor). */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    color: var(--muted);
   }
   .hist-item:hover { border-color: var(--accent); transform: scale(1.05); }
   .hist-item { position: relative; }
@@ -397,7 +403,12 @@ async function loadHistory() {
     for (const m of models) {
       const el = document.createElement('div');
       el.className = 'hist-item';
-      el.style.backgroundImage = `url("${withKey(`${API}/api/jobs/${m.id}/thumb.png`)}")`;
+      el.textContent = '🧊';
+      const thumb = withKey(`${API}/api/jobs/${m.id}/thumb.png`);
+      // Solo se pone la miniatura si existe; si no, queda el icono.
+      const probe = new Image();
+      probe.onload = () => { el.style.backgroundImage = `url("${thumb}")`; el.textContent = ''; };
+      probe.src = thumb;
       el.title = `${ENGINE_NAMES[m.engine] || m.engine} · ${(m.faces || 0).toLocaleString()} caras\n${new Date(m.ts * 1000).toLocaleString()}`;
       el.addEventListener('click', () => showJob(m.id));
 
