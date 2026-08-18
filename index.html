@@ -73,7 +73,6 @@
   }
   .mv-slot:hover { border-color: var(--accent); }
   .mv-slot.filled { border-style: solid; border-color: var(--accent); color: transparent; }
-  #stepsRow { display: flex; flex-direction: column; gap: 10px; }
   .hist-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
   .hist-item {
     aspect-ratio: 1;
@@ -260,16 +259,12 @@
       </div>
       <input type="file" id="mvFile" accept="image/*" hidden>
     </div>
-    <div class="card">
-      <label>Resolución de malla <span id="resVal">384</span></label>
-      <input type="range" id="res" min="128" max="512" step="64" value="384">
-      <div id="stepsRow">
-        <label>Calidad (pasos de IA) <span id="stepsVal">50</span></label>
-        <input type="range" id="steps" min="10" max="100" step="5" value="50">
-      </div>
-      <label class="toggle"><input type="checkbox" id="rmbg" checked> Quitar fondo automáticamente</label>
-      <label class="toggle"><input type="checkbox" id="smooth" checked> Suavizar la superficie</label>
-    </div>
+    <!-- Ajustes fijos al 75% (resolucion 384, 75 pasos, fondo y suavizado activos)
+         para dejar mas espacio a la galeria de modelos guardados. -->
+    <input type="hidden" id="res" value="384">
+    <input type="hidden" id="steps" value="75">
+    <input type="hidden" id="rmbg" checked>
+    <input type="hidden" id="smooth" checked>
     <button class="primary" id="go" disabled>Generar modelo 3D</button>
     <div id="bar"><div></div></div>
     <div id="queue"></div>
@@ -490,8 +485,6 @@ function setFile(f) {
   updateGo();
 }
 function updateGo() { $('go').disabled = !(selectedFile && serverReady); }
-$('res').addEventListener('input', e => $('resVal').textContent = e.target.value);
-$('steps').addEventListener('input', e => $('stepsVal').textContent = e.target.value);
 
 // ---------- motor y vistas extra ----------
 const viewFiles = { back: null, left: null, right: null };
