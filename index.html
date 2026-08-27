@@ -183,6 +183,9 @@
   .card input[type=range] { width: 100%; accent-color: var(--accent); }
   .toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; user-select: none; }
   .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .toggle.disabled { cursor: not-allowed; color: var(--muted); opacity: 0.6; }
+  .toggle.disabled input { cursor: not-allowed; }
+  .soon { font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 2px 6px; border: 1px solid var(--muted); border-radius: 999px; margin-left: 6px; color: var(--muted); }
   button.primary {
     background: linear-gradient(90deg, var(--accent), var(--accent2));
     border: none;
@@ -259,8 +262,9 @@
     <div class="card">
       <label>Motor de IA</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_max" checked> Generación rápida (2-5 min)</label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan_alta"> <b>ALTA</b> · más detalle (10-20 min)</label>
+      <label class="toggle disabled" title="Aún en pruebas — pronto disponible"><input type="radio" name="engine" value="trellis" disabled> <b>ULTRA calidad</b> · el mejor detalle <span class="soon">PRÓXIMAMENTE</span></label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"> Multi-vista · hasta 4 fotos (máxima fidelidad)</label>
-      <label class="toggle"><input type="radio" name="engine" value="trellis"> <b>ULTRA calidad</b> · el mejor detalle (hasta 30 min)</label>
       <div id="ultraNote" class="ultra-note" style="display:none"></div>
     </div>
     <div id="mvViews" class="card" style="display:none">
@@ -396,7 +400,8 @@ window.addEventListener('message', e => {
 });
 
 const ENGINE_NAMES = {
-  hunyuan_max: 'Máxima calidad',
+  hunyuan_max: 'Rápida',
+  hunyuan_alta: 'Alta calidad',
   hunyuan_mv: 'Multi-vista',
   trellis: 'ULTRA calidad',
 };
@@ -463,21 +468,8 @@ async function loadHistory() {
     $('histCard').style.display = 'flex';
     $('histEmpty').style.display = models.length ? 'none' : 'block';
 
-    // Contador de cuota ULTRA
-    const note = $('ultraNote');
-    if (ultra_limit) {
-      note.style.display = 'block';
-      if (ultra_remaining === 0) {
-        note.className = 'ultra-note out';
-        note.textContent = `Sin ULTRA hoy · vuelve mañana (${ultra_used}/${ultra_limit} usadas)`;
-      } else if (ultra_remaining === 1) {
-        note.className = 'ultra-note warn';
-        note.textContent = `Te queda ${ultra_remaining} generación ULTRA hoy`;
-      } else {
-        note.className = 'ultra-note';
-        note.textContent = `Te quedan ${ultra_remaining} generaciones ULTRA hoy`;
-      }
-    }
+    // Contador de cuota ULTRA (oculto mientras ULTRA está en pruebas).
+    $('ultraNote').style.display = 'none';
     histUser = USER;
   } catch {}
 }
