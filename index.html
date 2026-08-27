@@ -182,10 +182,12 @@
   .card label { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
   .card input[type=range] { width: 100%; accent-color: var(--accent); }
   .toggle { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; user-select: none; }
-  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; flex-shrink: 0; }
+  .toggle .tg-name { flex: 1; text-align: left; }
+  .toggle .tg-meta { color: var(--muted); font-size: 12px; margin-left: auto; white-space: nowrap; }
   .toggle.disabled { cursor: not-allowed; color: var(--muted); opacity: 0.6; }
   .toggle.disabled input { cursor: not-allowed; }
-  .soon { font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 2px 6px; border: 1px solid var(--muted); border-radius: 999px; margin-left: 6px; color: var(--muted); }
+  .soon { font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 2px 6px; border: 1px solid var(--muted); border-radius: 999px; margin-left: auto; color: var(--muted); white-space: nowrap; }
   button.primary {
     background: linear-gradient(90deg, var(--accent), var(--accent2));
     border: none;
@@ -261,10 +263,10 @@
     </div>
     <div class="card">
       <label>Motor de IA</label>
-      <label class="toggle"><input type="radio" name="engine" value="hunyuan_max" checked> Generación rápida (2-5 min)</label>
-      <label class="toggle"><input type="radio" name="engine" value="hunyuan_alta"> <b>ALTA</b> · más detalle (10-20 min)</label>
-      <label class="toggle disabled" title="Aún en pruebas — pronto disponible"><input type="radio" name="engine" value="trellis" disabled> <b>ULTRA calidad</b> · el mejor detalle <span class="soon">PRÓXIMAMENTE</span></label>
-      <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"> Multi-vista · hasta 4 fotos (máxima fidelidad)</label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan_max" checked><span class="tg-name"><b>RÁPIDA</b></span><span class="tg-meta">2-5 min</span></label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan_alta"><span class="tg-name"><b>ALTA</b> · más detalle</span><span class="tg-meta">10-20 min</span></label>
+      <label class="toggle disabled" title="Aún en pruebas — pronto disponible"><input type="radio" name="engine" value="trellis" disabled><span class="tg-name"><b>ULTRA</b> · el mejor detalle</span><span class="soon">PRÓXIMAMENTE</span></label>
+      <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"><span class="tg-name"><b>Multi-vista</b></span><span class="tg-meta">hasta 4 fotos</span></label>
       <div id="ultraNote" class="ultra-note" style="display:none"></div>
     </div>
     <div id="mvViews" class="card" style="display:none">
