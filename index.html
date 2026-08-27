@@ -107,6 +107,18 @@
   }
   .hist-item:hover .del { display: block; }
   .hist-item.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .hist-item.pending { cursor: wait; border-color: var(--accent); }
+  .hist-item.pending .spin {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 20px; color: var(--accent);
+    animation: hist-spin 1.2s linear infinite;
+  }
+  .hist-item.err { border-color: var(--err); color: var(--err); }
+  @keyframes hist-spin { to { transform: rotate(360deg); } }
+  .ultra-note { font-size: 11px; color: var(--muted); margin-top: 4px; padding-left: 22px; }
+  .ultra-note.warn { color: var(--accent); }
+  .ultra-note.out { color: var(--err); }
   .hist-hint { font-size: 11px; color: var(--muted); }
   #histCount { color: var(--muted); font-weight: 400; }
   #queue {
@@ -249,6 +261,7 @@
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_max" checked> Generación rápida (2-5 min)</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"> Multi-vista · hasta 4 fotos (máxima fidelidad)</label>
       <label class="toggle"><input type="radio" name="engine" value="trellis"> <b>ULTRA calidad</b> · el mejor detalle (hasta 30 min)</label>
+      <div id="ultraNote" class="ultra-note" style="display:none"></div>
     </div>
     <div id="mvViews" class="card" style="display:none">
       <label>Vistas extra del mismo objeto (opcionales)</label>
@@ -388,31 +401,55 @@ const ENGINE_NAMES = {
   trellis: 'ULTRA calidad',
 };
 
+let anyPending = false;
 async function loadHistory() {
   if (!USER || API === null) return;
   try {
     const r = await fetch(`${API}/api/history/${USER}`, { headers: hdrs() });
-    const { models, max } = await r.json();
+    const { models, max, ultra_used, ultra_limit, ultra_remaining } = await r.json();
     const div = $('hist');
     div.innerHTML = '';
+    anyPending = false;
     for (const m of models) {
       const el = document.createElement('div');
       el.className = 'hist-item';
-      el.textContent = '🧊';
-      const thumb = withKey(`${API}/api/jobs/${m.id}/thumb.png`);
-      // Solo se pone la miniatura si existe; si no, queda el icono.
-      const probe = new Image();
-      probe.onload = () => { el.style.backgroundImage = `url("${thumb}")`; el.textContent = ''; };
-      probe.src = thumb;
-      el.title = `${ENGINE_NAMES[m.engine] || m.engine} · ${(m.faces || 0).toLocaleString()} caras\n${new Date(m.ts * 1000).toLocaleString()}`;
-      el.addEventListener('click', () => showJob(m.id));
+      const pending = m.status === 'pending';
+      const errored = m.status === 'error';
+      if (pending) { el.classList.add('pending'); anyPending = true; }
+      if (errored) el.classList.add('err');
+
+      if (pending) {
+        el.innerHTML = '<div class="spin">⏳</div>';
+      } else if (errored) {
+        el.textContent = '⚠️';
+      } else {
+        el.textContent = '🧊';
+        const thumb = withKey(`${API}/api/jobs/${m.id}/thumb.png`);
+        const probe = new Image();
+        probe.onload = () => { el.style.backgroundImage = `url("${thumb}")`; el.textContent = ''; };
+        probe.src = thumb;
+      }
+
+      const when = new Date(m.ts * 1000).toLocaleString();
+      if (pending) {
+        el.title = `${ENGINE_NAMES[m.engine] || m.engine} · generando…\nSe guardará solo cuando termine.\n${when}`;
+      } else if (errored) {
+        el.title = `${ENGINE_NAMES[m.engine] || m.engine} · falló\n${m.error || ''}\n${when}`;
+      } else {
+        el.title = `${ENGINE_NAMES[m.engine] || m.engine} · ${(m.faces || 0).toLocaleString()} caras\n${when}`;
+      }
+      if (!pending && !errored) {
+        el.addEventListener('click', () => showJob(m.id));
+      }
 
       const del = document.createElement('button');
       del.className = 'del';
       del.textContent = '✕';
-      del.title = 'Borrar este modelo';
+      del.title = pending ? 'No se puede borrar un modelo en curso' : 'Borrar este modelo';
+      if (pending) { del.disabled = true; del.style.opacity = 0.4; }
       del.addEventListener('click', async ev => {
         ev.stopPropagation();
+        if (pending) return;
         if (!confirm('¿Borrar este modelo? No se puede deshacer.')) return;
         try {
           await fetch(`${API}/api/history/${USER}/${m.id}`, { method: 'DELETE', headers: hdrs() });
@@ -423,10 +460,24 @@ async function loadHistory() {
       div.appendChild(el);
     }
     $('histCount').textContent = models.length ? `(${models.length} de ${max})` : '';
-    // La tarjeta se mantiene visible aunque esté vacía, para que se vea dónde
-    // van a quedar guardados los modelos.
     $('histCard').style.display = 'flex';
     $('histEmpty').style.display = models.length ? 'none' : 'block';
+
+    // Contador de cuota ULTRA
+    const note = $('ultraNote');
+    if (ultra_limit) {
+      note.style.display = 'block';
+      if (ultra_remaining === 0) {
+        note.className = 'ultra-note out';
+        note.textContent = `Sin ULTRA hoy · vuelve mañana (${ultra_used}/${ultra_limit} usadas)`;
+      } else if (ultra_remaining === 1) {
+        note.className = 'ultra-note warn';
+        note.textContent = `Te queda ${ultra_remaining} generación ULTRA hoy`;
+      } else {
+        note.className = 'ultra-note';
+        note.textContent = `Te quedan ${ultra_remaining} generaciones ULTRA hoy`;
+      }
+    }
     histUser = USER;
   } catch {}
 }
@@ -463,6 +514,9 @@ async function ping() {
   updateGo();
 }
 setInterval(ping, 4000); ping();
+// Mientras haya modelos en curso en el historial, se refresca cada 10s por si
+// terminaron aunque la ventana esté quieta (el usuario cerró la pestaña activa).
+setInterval(() => { if (anyPending) loadHistory(); }, 10000);
 
 // ---------- carga de imagen ----------
 const drop = $('drop');
@@ -543,6 +597,8 @@ $('go').addEventListener('click', async () => {
     const r = await fetch(API + '/api/generate', { method: 'POST', body: fd, headers: hdrs() });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     const { job_id } = await r.json();
+    // Refresca el historial para que el placeholder pending aparezca ya.
+    loadHistory();
     poll(job_id);
   } catch (e) {
     fail(e.message);
@@ -551,8 +607,9 @@ $('go').addEventListener('click', async () => {
 async function poll(id) {
   try {
     const job = await (await fetch(`${API}/api/jobs/${id}`, { headers: hdrs() })).json();
-    if (job.status === 'error') return fail(job.error);
+    if (job.status === 'error') { loadHistory(); return fail(job.error); }
     if (job.status === 'done') {
+      loadHistory();
       setProgress(100, '¡Listo!');
       $('bar').style.display = 'none';
       $('queue').style.display = 'none';
