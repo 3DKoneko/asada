@@ -430,10 +430,15 @@ async function loadHistory() {
       } else if (errored) {
         el.textContent = '⚠️';
       } else {
-        el.textContent = '🧊';
+        // Ícono en su propio nodo: si va en el textContent del contenedor,
+        // limpiarlo al llegar la miniatura borra también el botón de borrar
+        // (ya insertado como hijo) porque textContent='' vacía TODOS los hijos.
+        const icon = document.createElement('span');
+        icon.textContent = '🧊';
+        el.appendChild(icon);
         const thumb = withKey(`${API}/api/jobs/${m.id}/thumb.png`);
         const probe = new Image();
-        probe.onload = () => { el.style.backgroundImage = `url("${thumb}")`; el.textContent = ''; };
+        probe.onload = () => { el.style.backgroundImage = `url("${thumb}")`; icon.remove(); };
         probe.src = thumb;
       }
 
