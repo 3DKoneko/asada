@@ -102,10 +102,11 @@
     font-weight: 700;
     line-height: 18px;
     cursor: pointer;
-    display: none;
+    display: block;
     padding: 0;
+    opacity: 0.75;
   }
-  .hist-item:hover .del { display: block; }
+  .hist-item .del:hover { opacity: 1; transform: scale(1.15); }
   .hist-item.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .hist-item.pending { cursor: wait; border-color: var(--accent); }
   .hist-item.pending .spin {
