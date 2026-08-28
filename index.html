@@ -265,7 +265,7 @@
       <label>Motor de IA</label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_max" checked><span class="tg-name"><b>RÁPIDA</b></span><span class="tg-meta">2-5 min</span></label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_alta"><span class="tg-name"><b>ALTA</b> · más detalle</span><span class="tg-meta">10-20 min</span></label>
-      <label class="toggle disabled" title="Aún en pruebas — pronto disponible"><input type="radio" name="engine" value="trellis" disabled><span class="tg-name"><b>ULTRA</b> · el mejor detalle</span><span class="soon">PRÓXIMAMENTE</span></label>
+      <label class="toggle"><input type="radio" name="engine" value="trellis"><span class="tg-name"><b>ULTRA</b> · el mejor detalle</span><span class="tg-meta">hasta 30 min</span></label>
       <label class="toggle"><input type="radio" name="engine" value="hunyuan_mv"><span class="tg-name"><b>Multi-vista</b></span><span class="tg-meta">hasta 4 fotos</span></label>
       <div id="ultraNote" class="ultra-note" style="display:none"></div>
     </div>
@@ -470,8 +470,21 @@ async function loadHistory() {
     $('histCard').style.display = 'flex';
     $('histEmpty').style.display = models.length ? 'none' : 'block';
 
-    // Contador de cuota ULTRA (oculto mientras ULTRA está en pruebas).
-    $('ultraNote').style.display = 'none';
+    // Contador de cuota ULTRA
+    const note = $('ultraNote');
+    if (ultra_limit) {
+      note.style.display = 'block';
+      if (ultra_remaining === 0) {
+        note.className = 'ultra-note out';
+        note.textContent = `Sin ULTRA hoy · vuelve mañana (${ultra_used}/${ultra_limit} usadas)`;
+      } else if (ultra_remaining === 1) {
+        note.className = 'ultra-note warn';
+        note.textContent = `Te queda ${ultra_remaining} generación ULTRA hoy`;
+      } else {
+        note.className = 'ultra-note';
+        note.textContent = `Te quedan ${ultra_remaining} generaciones ULTRA hoy`;
+      }
+    }
     histUser = USER;
   } catch {}
 }
