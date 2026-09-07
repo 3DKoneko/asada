@@ -437,10 +437,12 @@ async function loadHistory() {
         const icon = document.createElement('span');
         icon.textContent = '🧊';
         el.appendChild(icon);
-        const thumb = withKey(`${API}/api/jobs/${m.id}/thumb.png`);
-        const probe = new Image();
-        probe.onload = () => { el.style.backgroundImage = `url("${thumb}")`; icon.remove(); };
-        probe.src = thumb;
+        if (m.has_thumb) {
+          const thumb = withKey(`${API}/api/jobs/${m.id}/thumb.png`);
+          const probe = new Image();
+          probe.onload = () => { el.style.backgroundImage = `url("${thumb}")`; icon.remove(); };
+          probe.src = thumb;
+        }
       }
 
       const when = new Date(m.ts * 1000).toLocaleString();
